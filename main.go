@@ -1,4 +1,6 @@
 // Command usql is the universal command-line interface for SQL databases.
+//
+//go:debug x509negativeserial=1
 package main
 
 //go:generate go run gen.go
@@ -56,7 +58,7 @@ func main() {
 			if text.CommandVersion == "0.0.0-dev" || strings.Contains(text.CommandVersion, "-") {
 				rev = "master"
 			}
-			fmt.Fprintf(os.Stderr, "\ntry:\n\n  go install -tags 'most %s' github.com/xo/usql@%s\n\n", tag, rev)
+			fmt.Fprintf(os.Stderr, text.GoInstallHint, tag, rev)
 		}
 		switch estr := err.Error(); {
 		case err == text.ErrWrongNumberOfArguments,

@@ -2,6 +2,7 @@ package stmt
 
 import (
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -19,11 +20,13 @@ func TestGrab(t *testing.T) {
 		{"a", 1, 0},
 	}
 	for i, test := range tests {
-		z := []rune(test.s)
-		r := grab(z, test.i, len(z))
-		if r != test.exp {
-			t.Errorf("test %d expected %c, got: %c", i, test.exp, r)
-		}
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			z := []rune(test.s)
+			r := grab(z, test.i, len(z))
+			if r != test.exp {
+				t.Errorf("expected %c, got: %c", test.exp, r)
+			}
+		})
 	}
 }
 
@@ -45,14 +48,16 @@ func TestFindSpace(t *testing.T) {
 		{" aaa", 1, 4, false},
 	}
 	for i, test := range tests {
-		z := []rune(test.s)
-		n, b := findSpace(z, test.i, len(z))
-		if n != test.exp {
-			t.Errorf("test %d expected %d, got: %d", i, test.exp, n)
-		}
-		if b != test.b {
-			t.Errorf("test %d expected %t, got: %t", i, test.b, b)
-		}
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			z := []rune(test.s)
+			n, b := findSpace(z, test.i, len(z))
+			if n != test.exp {
+				t.Errorf("expected %d, got: %d", test.exp, n)
+			}
+			if b != test.b {
+				t.Errorf("expected %t, got: %t", test.b, b)
+			}
+		})
 	}
 }
 
@@ -76,14 +81,16 @@ func TestFindNonSpace(t *testing.T) {
 		{"    ", 1, 4, false},
 	}
 	for i, test := range tests {
-		z := []rune(test.s)
-		n, b := findNonSpace(z, test.i, len(z))
-		if n != test.exp {
-			t.Errorf("test %d expected %d, got: %d", i, test.exp, n)
-		}
-		if b != test.b {
-			t.Errorf("test %d expected %t, got: %t", i, test.b, b)
-		}
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			z := []rune(test.s)
+			n, b := findNonSpace(z, test.i, len(z))
+			if n != test.exp {
+				t.Errorf("expected %d, got: %d", test.exp, n)
+			}
+			if b != test.b {
+				t.Errorf("expected %t, got: %t", test.b, b)
+			}
+		})
 	}
 }
 
@@ -106,11 +113,13 @@ func TestIsEmptyLine(t *testing.T) {
 		{" \n\t ", 1, true},
 	}
 	for i, test := range tests {
-		z := []rune(test.s)
-		b := isEmptyLine(z, test.i, len(z))
-		if b != test.exp {
-			t.Errorf("test %d expected %t, got: %t", i, test.exp, b)
-		}
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			z := []rune(test.s)
+			b := isEmptyLine(z, test.i, len(z))
+			if b != test.exp {
+				t.Errorf("expected %t, got: %t", test.exp, b)
+			}
+		})
 	}
 }
 
@@ -148,30 +157,36 @@ func TestReadString(t *testing.T) {
 		{` "fo'o" `, 1, `"fo'o"`, true},
 		{`"fo''o"`, 0, `"fo''o"`, true},
 		{` "fo''o" `, 1, `"fo''o"`, true},
+		{`'本門台初埼本門台初埼'`, 0, `'本門台初埼本門台初埼'`, true},
+		{` '本門台初埼本門台初埼' `, 1, `'本門台初埼本門台初埼'`, true},
+		{`"本門台初埼本門台初埼"`, 0, `"本門台初埼本門台初埼"`, true},
+		{` "本門台初埼本門台初埼" `, 1, `"本門台初埼本門台初埼"`, true},
 	}
 	for i, test := range tests {
-		r := []rune(test.s)
-		c, end := rune(strings.TrimSpace(test.s)[0]), len(r)
-		if c != '\'' && c != '"' && c != '`' {
-			t.Fatalf("test %d incorrect!", i)
-		}
-		pos, ok := readString(r, test.i+1, end, c, "")
-		if ok != test.ok {
-			t.Fatalf("test %d expected ok %t, got: %t", i, test.ok, ok)
-		}
-		if !test.ok {
-			continue
-		}
-		if r[pos] != c {
-			t.Fatalf("test %d expected last character to be %c, got: %c", i, c, r[pos])
-		}
-		v := string(r[test.i : pos+1])
-		if n := len(v); n < 2 {
-			t.Fatalf("test %d expected result of at least length 2, got: %d", i, n)
-		}
-		if v != test.exp {
-			t.Errorf("test %d expected %q, got: %q", i, test.exp, v)
-		}
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			r := []rune(test.s)
+			c, end := rune(strings.TrimSpace(test.s)[0]), len(r)
+			if c != '\'' && c != '"' && c != '`' {
+				t.Fatal("incorrect!")
+			}
+			pos, ok := readString(r, test.i+1, end, c, "")
+			if ok != test.ok {
+				t.Fatalf("expected ok %t, got: %t", test.ok, ok)
+			}
+			if !test.ok {
+				return
+			}
+			if r[pos] != c {
+				t.Fatalf("expected last character to be %c, got: %c", c, r[pos])
+			}
+			v := string(r[test.i : pos+1])
+			if n := len(v); n < 2 {
+				t.Fatalf("expected result of at least length 2, got: %d", n)
+			}
+			if v != test.exp {
+				t.Errorf("expected %q, got: %q", test.exp, v)
+			}
+		})
 	}
 }
 
@@ -181,64 +196,66 @@ func TestReadCommand(t *testing.T) {
 		i   int
 		exp string
 	}{
-		{`\c foo bar z`, 0, `\c| foo bar z|`}, // 0
+		{`\c foo bar z`, 0, `\c| foo bar z|`},
 		{`\c foo bar z `, 0, `\c| foo bar z |`},
 		{`\c foo bar z  `, 0, `\c| foo bar z  |`},
 		{`\c    foo    bar    z  `, 0, `\c|    foo    bar    z  |`},
 		{`\c    pg://blah    bar    z  `, 0, `\c|    pg://blah    bar    z  |`},
-		{`\foo    pg://blah    bar    z  `, 0, `\foo|    pg://blah    bar    z  |`}, // 5
+		{`\foo    pg://blah    bar    z  `, 0, `\foo|    pg://blah    bar    z  |`},
 		{`\a\b`, 0, `\a||\b`},
 		{`\a \b`, 0, `\a| |\b`},
 		{"\\a \n\\b", 0, "\\a| |\n\\b"},
 		{` \ab \bc \cd `, 5, `\bc| |\cd `},
-		{`\p foo \p`, 0, `\p| foo |\p`}, // 10
+		{`\p foo \p`, 0, `\p| foo |\p`},
 		{`\p foo   \p bar`, 0, `\p| foo   |\p bar`},
 		{`\p\p`, 0, `\p||\p`},
 		{`\p \r foo`, 0, `\p| |\r foo`},
 		{`\print   \reset    foo`, 0, `\print|   |\reset    foo`},
-		{`\print   \reset    foo`, 9, `\reset|    foo|`}, // 15
+		{`\print   \reset    foo`, 9, `\reset|    foo|`},
 		{`\print   \reset    foo  `, 9, `\reset|    foo  |`},
 		{`\print   \reset    foo  bar  `, 9, `\reset|    foo  bar  |`},
 		{`\c 'foo bar' z`, 0, `\c| 'foo bar' z|`},
 		{`\c foo "bar " z `, 0, `\c| foo "bar " z |`},
-		{"\\c `foo bar z  `  ", 0, "\\c| `foo bar z  `  |"}, // 20
+		{"\\c `foo bar z  `  ", 0, "\\c| `foo bar z  `  |"},
 		{`\c 'foob':foo:bar'test'  `, 0, `\c| 'foob':foo:bar'test'  |`},
 		{"\\a \n\\b\\c\n", 0, "\\a| |\n\\b\\c\n"},
 		{`\a'foob' \b`, 0, `\a'foob'| |\b`},
-		{`\foo 'test' "bar"\print`, 0, `\foo| 'test' "bar"|\print`}, // 25
+		{`\foo 'test' "bar"\print`, 0, `\foo| 'test' "bar"|\print`},
 		{`\foo 'test' "bar"  \print`, 0, `\foo| 'test' "bar"  |\print`},
 		{`\afoob' \b`, 0, `\afoob'| |\b`},
 		{`\afoob' '\b  `, 0, `\afoob'| '\b  |`},
 		{`\afoob' '\b  '\print`, 0, `\afoob'| '\b  '|\print`},
-		{`\afoob' '\b  ' \print`, 0, `\afoob'| '\b  ' |\print`}, // 30
+		{`\afoob' '\b  ' \print`, 0, `\afoob'| '\b  ' |\print`},
 		{`\afoob' '\b  ' \print `, 0, `\afoob'| '\b  ' |\print `},
 		{"\\foo `foob'foob'\\print", 0, "\\foo| `foob'foob'\\print|"},
 		{"\\foo `foob'foob'  \\print", 0, "\\foo| `foob'foob'  \\print|"},
 		{`\foo "foob'foob'\\print`, 0, `\foo| "foob'foob'\\print|`},
-		{`\foo "foob'foob'  \\print`, 0, `\foo| "foob'foob'  \\print|`}, // 35
+		{`\foo "foob'foob'  \\print`, 0, `\foo| "foob'foob'  \\print|`},
 		{`\foo "\""\print`, 0, `\foo| "\""|\print`},
 		{`\foo "\"'"\print`, 0, `\foo| "\"'"|\print`},
 		{`\foo "\"''"\print`, 0, `\foo| "\"''"|\print`},
 	}
 	for i, test := range tests {
-		z := []rune(test.s)
-		if !strings.Contains(test.exp, "|") {
-			t.Fatalf("test %d expected value is invalid (missing |): %q", i, test.exp)
-		}
-		v := strings.Split(test.exp, "|")
-		if len(v) != 3 {
-			t.Fatalf("test %d should have 3 expected values, has: %d", i, len(v))
-		}
-		cmd, params := readCommand(z, test.i, len(z))
-		if s := string(z[test.i:cmd]); s != v[0] {
-			t.Errorf("test %d expected command to be `%s`, got: `%s` [%d, %d]", i, v[0], s, cmd, params)
-		}
-		if s := string(z[cmd:params]); s != v[1] {
-			t.Errorf("test %d expected params to be `%s`, got: `%s` [%d, %d]", i, v[1], s, cmd, params)
-		}
-		if s := string(z[params:]); s != v[2] {
-			t.Errorf("test %d expected remaining to be `%s`, got: `%s`", i, v[2], s)
-		}
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			z := []rune(test.s)
+			if !strings.Contains(test.exp, "|") {
+				t.Fatalf("expected value is invalid (missing |): %q", test.exp)
+			}
+			v := strings.Split(test.exp, "|")
+			if len(v) != 3 {
+				t.Fatalf("should have 3 expected values, has: %d", len(v))
+			}
+			cmd, params := readCommand(z, test.i, len(z))
+			if s := string(z[test.i:cmd]); s != v[0] {
+				t.Errorf("expected command to be %q, got: %q [%d, %d]", v[0], s, cmd, params)
+			}
+			if s := string(z[cmd:params]); s != v[1] {
+				t.Errorf("expected params to be %q, got: %q [%d, %d]", v[1], s, cmd, params)
+			}
+			if s := string(z[params:]); s != v[2] {
+				t.Errorf("expected remaining to be %q, got: %q", v[2], s)
+			}
+		})
 	}
 }
 
@@ -253,14 +270,14 @@ func TestFindPrefix(t *testing.T) {
 		{"  ", 4, ""},
 		{" select ", 4, "SELECT"},
 		{" select to ", 4, "SELECT TO"},
-		{" select to ", 4, "SELECT TO"}, // 5
+		{" select to ", 4, "SELECT TO"},
 		{" select   to   ", 4, "SELECT TO"},
 		{"select into from", 2, "SELECT INTO"},
 		{"select into * from", 4, "SELECT INTO"},
 		{" select into  *   from  ", 4, "SELECT INTO"},
-		{" select   \t  into \n *  \t\t\n\n\n  from     ", 4, "SELECT INTO"}, // 10
+		{" select   \t  into \n *  \t\t\n\n\n  from     ", 4, "SELECT INTO"},
 		{"  select\n\n\tb\t\tzfrom j\n\n  ", 2, "SELECT B"},
-		{"select/* foob  */into", 4, "SELECTINTO"}, // 12
+		{"select/* foob  */into", 4, "SELECTINTO"},
 		{"select/* foob  */\tinto", 4, "SELECT INTO"},
 		{"select/* foob  */ into", 4, "SELECT INTO"},
 		{"select/* foob  */ into ", 4, "SELECT INTO"},
@@ -268,7 +285,7 @@ func TestFindPrefix(t *testing.T) {
 		{"   select /* foob  */ into ", 4, "SELECT INTO"},
 		{" select * --test\n from where \n\nfff", 4, "SELECT"},
 		{"/*idreamedital*/foo//bar\n/*  nothing */test\n\n\nwe made /*\n\n\n\n*/   \t   it    ", 5, "FOO TEST WE MADE IT"},
-		{" --yes\n//no\n\n\t/*whatever*/ ", 4, ""}, // 20
+		{" --yes\n//no\n\n\t/*whatever*/ ", 4, ""},
 		{"/*/*test*/*/ select ", 4, ""},
 		{"/*/*test*/*/ select ", 4, ""},
 		{"//", 4, ""},
@@ -276,7 +293,7 @@ func TestFindPrefix(t *testing.T) {
 		{"* select", 4, ""},
 		{"/**/", 4, ""},
 		{"--\n\t\t\thello,\t--", 4, "HELLO"},
-		{"/*   */\n\n\n\tselect/*--\n*/\t\b\bzzz", 4, "SELECT ZZZ"}, // 28
+		{"/*   */\n\n\n\tselect/*--\n*/\t\b\bzzz", 4, "SELECT ZZZ"},
 		{"n\nn\n\nn\tn", 7, "N N N N"},
 		{"n\nn\n\nn\tn", 1, "N"},
 		{"--\n/* */n/* */\nn\n--\nn\tn", 7, "N N N N"},
@@ -288,12 +305,12 @@ func TestFindPrefix(t *testing.T) {
 		{"\n\n/* */\nn/* */ n", 7, "N N"},
 		{"*/foob", 7, ""},
 		{"*/ \n --\nfoob", 7, ""},
-		{"--\n\n--\ntest", 7, "TEST"}, // 40
+		{"--\n\n--\ntest", 7, "TEST"},
 		{"\b\btest", 7, "TEST"},
 		{"select/*\r\n\r\n*/blah", 7, "SELECTBLAH"},
 		{"\r\n\r\nselect from where", 8, "SELECT FROM WHERE"},
 		{"\r\n\b\bselect 1;create 2;", 8, "SELECT"},
-		{"\r\n\bbegin transaction;\ncreate x where;", 8, "BEGIN TRANSACTION"}, // 45
+		{"\r\n\bbegin transaction;\ncreate x where;", 8, "BEGIN TRANSACTION"},
 		{"begin;test;create;awesome", 3, "BEGIN"},
 		{" /* */ ; begin; ", 5, ""},
 		{" /* foo */ test; test", 5, "TEST"},
@@ -307,9 +324,11 @@ func TestFindPrefix(t *testing.T) {
 		{"#\nbegin /* */transaction/* */\n/* */\t#\ninsert into x;#\n--/* */\ncommit;", 6, "BEGIN TRANSACTION INSERT INTO X"},
 	}
 	for i, test := range tests {
-		if p := findPrefix([]rune(test.s), test.w, true, true, true); p != test.exp {
-			t.Errorf("test %d %q expected %q, got: %q", i, test.s, test.exp, p)
-		}
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			if p := findPrefix([]rune(test.s), test.w, true, true, true); p != test.exp {
+				t.Errorf("%q expected %q, got: %q", test.s, test.exp, p)
+			}
+		})
 	}
 }
 
@@ -326,27 +345,30 @@ func TestReadVar(t *testing.T) {
 		{`a:a`, 0, nil},
 		{`: `, 0, nil},
 		{`: a `, 0, nil},
-		{`:a`, 0, v(0, 2, `a`)}, // 7
-		{`:ab`, 0, v(0, 3, `ab`)},
-		{`:a `, 0, v(0, 2, `a`)},
-		{`:a_ `, 0, v(0, 3, `a_`)},
-		{":a_\t ", 0, v(0, 3, `a_`)},
-		{":a_\n ", 0, v(0, 3, `a_`)},
-		{`:a9`, 0, v(0, 3, `a9`)}, // 13
-		{`:ab9`, 0, v(0, 4, `ab9`)},
-		{`:a 9`, 0, v(0, 2, `a`)},
-		{`:a_9 `, 0, v(0, 4, `a_9`)},
-		{":a_9\t ", 0, v(0, 4, `a_9`)},
-		{":a_9\n ", 0, v(0, 4, `a_9`)},
-		{`:a_;`, 0, v(0, 3, `a_`)}, // 19
-		{`:a_\`, 0, v(0, 3, `a_`)},
-		{`:a_$`, 0, v(0, 3, `a_`)},
-		{`:a_'`, 0, v(0, 3, `a_`)},
-		{`:a_"`, 0, v(0, 3, `a_`)},
-		{`:ab `, 0, v(0, 3, `ab`)}, // 24
-		{`:ab123 `, 0, v(0, 6, `ab123`)},
-		{`:ab123`, 0, v(0, 6, `ab123`)},
-		{`:'`, 0, nil}, // 27
+		{`:'ab  ' `, 0, nil},
+		{`:"ab  " `, 0, nil},
+		{`:{?ab  } `, 0, nil},
+		{`:a`, 0, v(0, `a`)},
+		{`:ab`, 0, v(0, `ab`)},
+		{`:a `, 0, v(0, `a`)},
+		{`:a_ `, 0, v(0, `a_`)},
+		{":a_\t ", 0, v(0, `a_`)},
+		{":a_\n ", 0, v(0, `a_`)},
+		{`:a9`, 0, v(0, `a9`)},
+		{`:ab9`, 0, v(0, `ab9`)},
+		{`:a 9`, 0, v(0, `a`)},
+		{`:a_9 `, 0, v(0, `a_9`)},
+		{":a_9\t ", 0, v(0, `a_9`)},
+		{":a_9\n ", 0, v(0, `a_9`)},
+		{`:a_;`, 0, v(0, `a_`)},
+		{`:a_\`, 0, v(0, `a_`)},
+		{`:a_$`, 0, v(0, `a_`)},
+		{`:a_'`, 0, v(0, `a_`)},
+		{`:a_"`, 0, v(0, `a_`)},
+		{`:ab `, 0, v(0, `ab`)},
+		{`:ab123 `, 0, v(0, `ab123`)},
+		{`:ab123`, 0, v(0, `ab123`)},
+		{`:'`, 0, nil},
 		{`:' `, 0, nil},
 		{`:' a`, 0, nil},
 		{`:' a `, 0, nil},
@@ -354,60 +376,74 @@ func TestReadVar(t *testing.T) {
 		{`:" `, 0, nil},
 		{`:" a`, 0, nil},
 		{`:" a `, 0, nil},
-		{`:''`, 0, nil}, // 35
+		{`:''`, 0, nil},
 		{`:'' `, 0, nil},
 		{`:'' a`, 0, nil},
 		{`:""`, 0, nil},
 		{`:"" `, 0, nil},
 		{`:"" a`, 0, nil},
-		{`:'     `, 0, nil}, // 41
+		{`:'     `, 0, nil},
 		{`:'       `, 0, nil},
 		{`:"     `, 0, nil},
 		{`:"       `, 0, nil},
-		{`:'a'`, 0, v(0, 4, `a`, `'`)}, // 45
-		{`:'a' `, 0, v(0, 4, `a`, `'`)},
-		{`:'ab'`, 0, v(0, 5, `ab`, `'`)},
-		{`:'ab' `, 0, v(0, 5, `ab`, `'`)},
-		{`:'ab  ' `, 0, v(0, 7, `ab  `, `'`)},
-		{`:"a"`, 0, v(0, 4, `a`, `"`)}, // 50
-		{`:"a" `, 0, v(0, 4, `a`, `"`)},
-		{`:"ab"`, 0, v(0, 5, `ab`, `"`)},
-		{`:"ab" `, 0, v(0, 5, `ab`, `"`)},
-		{`:"ab  " `, 0, v(0, 7, `ab  `, `"`)},
-		{`:型`, 0, v(0, 2, "型")}, // 55
-		{`:'型'`, 0, v(0, 4, "型", `'`)},
-		{`:"型"`, 0, v(0, 4, "型", `"`)},
-		{` :型 `, 1, v(1, 3, "型")},
-		{` :'型' `, 1, v(1, 5, "型", `'`)},
-		{` :"型" `, 1, v(1, 5, "型", `"`)},
-		{`:型示師`, 0, v(0, 4, "型示師")}, // 61
-		{`:'型示師'`, 0, v(0, 6, "型示師", `'`)},
-		{`:"型示師"`, 0, v(0, 6, "型示師", `"`)},
-		{` :型示師 `, 1, v(1, 5, "型示師")},
-		{` :'型示師' `, 1, v(1, 7, "型示師", `'`)},
-		{` :"型示師" `, 1, v(1, 7, "型示師", `"`)},
+		{`:'a'`, 0, v(0, `a`, `'`)},
+		{`:'a' `, 0, v(0, `a`, `'`)},
+		{`:'ab'`, 0, v(0, `ab`, `'`)},
+		{`:'ab' `, 0, v(0, `ab`, `'`)},
+		{`:"a"`, 0, v(0, `a`, `"`)},
+		{`:"a" `, 0, v(0, `a`, `"`)},
+		{`:"ab"`, 0, v(0, `ab`, `"`)},
+		{`:"ab" `, 0, v(0, `ab`, `"`)},
+		{`:型`, 0, v(0, "型")},
+		{`:'型'`, 0, v(0, "型", `'`)},
+		{`:"型"`, 0, v(0, "型", `"`)},
+		{` :型 `, 1, v(1, "型")},
+		{` :'型' `, 1, v(1, "型", `'`)},
+		{` :"型" `, 1, v(1, "型", `"`)},
+		{`:型示師`, 0, v(0, "型示師")},
+		{`:'型示師'`, 0, v(0, "型示師", `'`)},
+		{`:"型示師"`, 0, v(0, "型示師", `"`)},
+		{` :型示師 `, 1, v(1, "型示師")},
+		{` :'型示師' `, 1, v(1, "型示師", `'`)},
+		{` :"型示師" `, 1, v(1, "型示師", `"`)},
+		{`:{?a}`, 0, v(0, "a", `?`)},
+		{` :{?a} `, 1, v(1, "a", `?`)},
+		{`:{?a_b} `, 0, v(0, "a_b", `?`)},
+		{` :{?a_b} `, 1, v(1, "a_b", `?`)},
 	}
 	for i, test := range tests {
-		z := []rune(test.s)
-		v := readVar(z, test.i, len(z))
-		if !reflect.DeepEqual(v, test.exp) {
-			t.Errorf("test %d expected %#v, got: %#v", i, test.exp, v)
-		}
-		if test.exp != nil && v != nil {
-			n := string(z[v.I+1 : v.End])
-			if v.Quote != 0 {
-				if c := rune(n[0]); c != v.Quote {
-					t.Errorf("test %d expected var to start with quote %c, got: %c", i, c, v.Quote)
-				}
-				if c := rune(n[len(n)-1]); c != v.Quote {
-					t.Errorf("test %d expected var to end with quote %c, got: %c", i, c, v.Quote)
-				}
-				n = n[1 : len(n)-1]
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			t.Logf("parsing %q", test.s)
+			z := []rune(test.s)
+			v := readVar(z, test.i, len(z), grab(z, test.i+1, len(z)))
+			if !reflect.DeepEqual(v, test.exp) {
+				t.Errorf("\nexpected: %#v\n     got: %#v", test.exp, v)
 			}
-			if n != test.exp.Name {
-				t.Errorf("test %d expected var name of `%s`, got: `%s`", i, test.exp.Name, n)
+			if test.exp != nil && v != nil {
+				n := string(z[v.I+1 : v.End])
+				switch v.Quote {
+				case '\'', '"':
+					if c := rune(n[0]); c != v.Quote {
+						t.Errorf("expected var to start with quote %c, got: %c", c, v.Quote)
+					}
+					if c := rune(n[len(n)-1]); c != v.Quote {
+						t.Errorf("expected var to end with quote %c, got: %c", c, v.Quote)
+					}
+					n = n[1 : len(n)-1]
+				case '?':
+					if !strings.HasPrefix(n, "{?") {
+						t.Errorf("expected var %q to start with {?", n)
+					}
+					if !strings.HasSuffix(n, "}") {
+						t.Errorf("expected var %q to end with }", n)
+					}
+					n = n[2 : len(n)-1]
+				}
+				if n != test.exp.Name {
+					t.Errorf("expected var name of %q, got: %q", test.exp.Name, n)
+				}
 			}
-		}
+		})
 	}
 }
 
@@ -434,95 +470,15 @@ func TestSubstitute(t *testing.T) {
 		{"foo", 0, 1, "bar", "baroo"},
 	}
 	for i, test := range tests {
-		r := []rune(test.s)
-		r, rlen := substitute(r, test.i, len(r), test.n, test.t)
-		if rlen != len(test.exp) {
-			t.Errorf("test %d expected length %d, got: %d", i, len(test.exp), rlen)
-		}
-		if s := string(r); s != test.exp {
-			t.Errorf("test %d expected %q, got %q", i, test.exp, s)
-		}
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			r := []rune(test.s)
+			r, rlen := substitute(r, test.i, len(r), test.n, test.t)
+			if rlen != len(test.exp) {
+				t.Errorf("expected length %d, got: %d", len(test.exp), rlen)
+			}
+			if s := string(r); s != test.exp {
+				t.Errorf("expected %q, got %q", test.exp, s)
+			}
+		})
 	}
-}
-
-func TestSubstituteVar(t *testing.T) {
-	a512 := sl(512, 'a')
-	tests := []struct {
-		s   string
-		v   *Var
-		sub string
-		exp string
-	}{
-		{`:a`, v(0, 2, `a`), `x`, `x`},
-		{` :a`, v(1, 3, `a`), `x`, ` x`},
-		{`:a `, v(0, 2, `a`), `x`, `x `},
-		{` :a `, v(1, 3, `a`), `x`, ` x `},
-		{` :'a' `, v(1, 5, `a`, `'`), `'x'`, ` 'x' `},
-		{` :"a" `, v(1, 5, "a", `"`), `"x"`, ` "x" `},
-		{`:a`, v(0, 2, `a`), ``, ``}, // 6
-		{` :a`, v(1, 3, `a`), ``, ` `},
-		{`:a `, v(0, 2, `a`), ``, ` `},
-		{` :a `, v(1, 3, `a`), ``, `  `},
-		{` :'a' `, v(1, 5, `a`, `'`), ``, `  `},
-		{` :"a" `, v(1, 5, "a", `"`), "", `  `},
-		{` :aaa `, v(1, 5, "aaa"), "", "  "}, // 12
-		{` :aaa `, v(1, 5, "aaa"), a512, " " + a512 + " "},
-		{` :` + a512 + ` `, v(1, len(a512)+2, a512), "", "  "},
-		{`:foo`, v(0, 4, "foo"), "这是一个", `这是一个`}, // 15
-		{`:foo `, v(0, 4, "foo"), "这是一个", `这是一个 `},
-		{` :foo`, v(1, 5, "foo"), "这是一个", ` 这是一个`},
-		{` :foo `, v(1, 5, "foo"), "这是一个", ` 这是一个 `},
-		{`:'foo'`, v(0, 6, `foo`, `'`), `'这是一个'`, `'这是一个'`}, // 19
-		{`:'foo' `, v(0, 6, `foo`, `'`), `'这是一个'`, `'这是一个' `},
-		{` :'foo'`, v(1, 7, `foo`, `'`), `'这是一个'`, ` '这是一个'`},
-		{` :'foo' `, v(1, 7, `foo`, `'`), `'这是一个'`, ` '这是一个' `},
-		{`:"foo"`, v(0, 6, `foo`, `"`), `"这是一个"`, `"这是一个"`}, // 23
-		{`:"foo" `, v(0, 6, `foo`, `"`), `"这是一个"`, `"这是一个" `},
-		{` :"foo"`, v(1, 7, `foo`, `"`), `"这是一个"`, ` "这是一个"`},
-		{` :"foo" `, v(1, 7, `foo`, `"`), `"这是一个"`, ` "这是一个" `},
-		{`:型`, v(0, 2, `型`), `x`, `x`}, // 27
-		{` :型`, v(1, 3, `型`), `x`, ` x`},
-		{`:型 `, v(0, 2, `型`), `x`, `x `},
-		{` :型 `, v(1, 3, `型`), `x`, ` x `},
-		{` :'型' `, v(1, 5, `型`, `'`), `'x'`, ` 'x' `},
-		{` :"型" `, v(1, 5, "型", `"`), `"x"`, ` "x" `},
-		{`:型`, v(0, 2, `型`), ``, ``}, // 33
-		{` :型`, v(1, 3, `型`), ``, ` `},
-		{`:型 `, v(0, 2, `型`), ``, ` `},
-		{` :型 `, v(1, 3, `型`), ``, `  `},
-		{` :'型' `, v(1, 5, `型`, `'`), ``, `  `},
-		{` :"型" `, v(1, 5, "型", `"`), "", `  `},
-		{`:型示師`, v(0, 4, `型示師`), `本門台初埼本門台初埼`, `本門台初埼本門台初埼`}, // 39
-		{` :型示師`, v(1, 5, `型示師`), `本門台初埼本門台初埼`, ` 本門台初埼本門台初埼`},
-		{`:型示師 `, v(0, 4, `型示師`), `本門台初埼本門台初埼`, `本門台初埼本門台初埼 `},
-		{` :型示師 `, v(1, 5, `型示師`), `本門台初埼本門台初埼`, ` 本門台初埼本門台初埼 `},
-		{` :型示師 `, v(1, 5, `型示師`), `本門台初埼本門台初埼`, ` 本門台初埼本門台初埼 `},
-		{` :'型示師' `, v(1, 7, `型示師`), `'本門台初埼本門台初埼'`, ` '本門台初埼本門台初埼' `},
-		{` :"型示師" `, v(1, 7, `型示師`), `"本門台初埼本門台初埼"`, ` "本門台初埼本門台初埼" `},
-	}
-	for i, test := range tests {
-		z := []rune(test.s)
-		y, l := substituteVar(z, test.v, test.sub)
-		if sl := len([]rune(test.sub)); test.v.Len != sl {
-			t.Errorf("test %d, expected v.Len to be %d, got: %d", i, sl, test.v.Len)
-		}
-		if el := len([]rune(test.exp)); l != el {
-			t.Errorf("test %d expected l==%d, got: %d", i, el, l)
-		}
-		if s := string(y); s != test.exp {
-			t.Errorf("test %d expected `%s`, got: `%s`", i, test.exp, s)
-		}
-	}
-}
-
-func v(i, end int, n string, x ...string) *Var {
-	z := &Var{
-		I:    i,
-		End:  end,
-		Name: n,
-	}
-	if len(x) != 0 {
-		z.Quote = []rune(x[0])[0]
-	}
-	return z
 }

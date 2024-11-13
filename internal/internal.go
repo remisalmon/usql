@@ -24,7 +24,7 @@ func KnownBuildTags() map[string]string {
 		"dynamodb":      "dynamodb",      // github.com/btnguyen2k/godynamo
 		"exasol":        "exasol",        // github.com/exasol/exasol-driver-go
 		"firebird":      "firebirdsql",   // github.com/nakagami/firebirdsql
-		"flightsql":     "flightsql",     // github.com/apache/arrow/go/v12/arrow/flight/flightsql/driver
+		"flightsql":     "flightsql",     // github.com/apache/arrow/go/v17/arrow/flight/flightsql/driver
 		"godror":        "godror",        // github.com/godror/godror
 		"h2":            "h2",            // github.com/jmrobles/h2go
 		"hive":          "hive",          // sqlflow.org/gohive

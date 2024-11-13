@@ -8,7 +8,10 @@ import (
 // prefixCount is the number of words to extract from a prefix.
 const prefixCount = 6
 
-// grab grabs i from r, or returns 0 if i >= end.
+// maxVarNameLen is the maximum var name length.
+const maxVarNameLen = 128
+
+// grab returns the i'th rune from r when i < end, otherwise 0.
 func grab(r []rune, i, end int) rune {
 	if i < end {
 		return r[i]
@@ -19,7 +22,7 @@ func grab(r []rune, i, end int) rune {
 // findSpace finds first space rune in r, returning end if not found.
 func findSpace(r []rune, i, end int) (int, bool) {
 	for ; i < end; i++ {
-		if IsSpaceOrControl(r[i]) {
+		if isSpaceOrControl(r[i]) {
 			return i, true
 		}
 	}
@@ -29,7 +32,7 @@ func findSpace(r []rune, i, end int) (int, bool) {
 // findNonSpace finds first non space rune in r, returning end if not found.
 func findNonSpace(r []rune, i, end int) (int, bool) {
 	for ; i < end; i++ {
-		if !IsSpaceOrControl(r[i]) {
+		if !isSpaceOrControl(r[i]) {
 			return i, true
 		}
 	}
@@ -122,59 +125,50 @@ func readMultilineComment(r []rune, i, end int) (int, bool) {
 	return end, false
 }
 
-// readStringVar reads a string quoted variable.
-func readStringVar(r []rune, i, end int) *Var {
-	start, q := i, grab(r, i+1, end)
-	for i += 2; i < end; i++ {
-		c := grab(r, i, end)
-		if c == q {
-			if i-start < 3 {
-				return nil
-			}
-			return &Var{
-				I:     start,
-				End:   i + 1,
-				Quote: q,
-				Name:  string(r[start+2 : i]),
-			}
+// readVar reads variable from r in the form of :var_name :'var_name'
+// :"var_name" and :{?var_name}.
+func readVar(r []rune, i, end int, next rune) *Var {
+	o := 1
+	switch next {
+	case '\'', '"':
+		o = 2
+	case '{':
+		if grab(r, i+2, end) != '?' {
+			return nil
 		}
-		/*
-			// this is commented out, because need to determine what should be
-			// the "right" behavior ... should we only allow "identifiers"?
-			else if c != '_' && !unicode.IsLetter(c) && !unicode.IsNumber(c) {
-				return nil
-			}
-		*/
+		o, next = 3, '}'
+	default:
+		next = 0
 	}
-	return nil
-}
-
-// readVar reads variable from r.
-func readVar(r []rune, i, end int) *Var {
-	if grab(r, i, end) != ':' || grab(r, i+1, end) == ':' {
+	n, q := readVarName(r, i+o, end, next)
+	v := n
+	switch {
+	case n-i < o+1, next != 0 && next != q:
 		return nil
+	case next != 0:
+		v++
 	}
-	if end-i < 2 {
-		return nil
-	}
-	if c := grab(r, i+1, end); c == '"' || c == '\'' {
-		return readStringVar(r, i, end)
-	}
-	start := i
-	i++
-	for ; i < end; i++ {
-		if c := grab(r, i, end); c != '_' && !unicode.IsLetter(c) && !unicode.IsNumber(c) {
-			break
-		}
-	}
-	if i-start < 2 {
-		return nil
+	if next == '}' {
+		next = '?'
 	}
 	return &Var{
-		I:    start,
-		End:  i,
-		Name: string(r[start+1 : i]),
+		I:     i,
+		End:   v,
+		Quote: next,
+		Name:  string(r[i+o : n]),
 	}
+}
+
+// readVarName reads a variable name up to maxVarNameLen.
+func readVarName(r []rune, i, end int, q rune) (int, rune) {
+	c := rune(-1)
+	for n := 0; i < end && n < maxVarNameLen && c != q; i, n = i+1, n+1 {
+		switch c = grab(r, i, end); {
+		case c == 0, c == q, c != '_' && !unicode.IsLetter(c) && !unicode.IsNumber(c):
+			return i, c
+		}
+	}
+	return i, 0
 }
 
 // readCommand reads the command and any parameters from r, returning the
@@ -183,11 +177,11 @@ func readVar(r []rune, i, end int) *Var {
 // A command is defined as the first non-blank text after \, followed by
 // parameters up to either the next \ or a control character (for example, \n):
 func readCommand(r []rune, i, end int) (int, int) {
-command:
 	// find end of command
+	c, next := rune(0), rune(0)
+command:
 	for ; i < end; i++ {
-		next := grab(r, i+1, end)
-		switch {
+		switch next = grab(r, i+1, end); {
 		case next == 0:
 			return end, end
 		case next == '\\' || unicode.IsControl(next):
@@ -202,8 +196,7 @@ command:
 params:
 	// find end of params
 	for ; i < end; i++ {
-		c, next := r[i], grab(r, i+1, end)
-		switch {
+		switch c, next = r[i], grab(r, i+1, end); {
 		case next == 0:
 			return cmd, end
 		case quote == 0 && (c == '\'' || c == '"' || c == '`'):
@@ -263,7 +256,7 @@ loop:
 			}
 			// add space when remaining runes begin with space, and previous
 			// captured word did not
-			if sl := len(s); end > 0 && sl != 0 && IsSpaceOrControl(r[0]) && !IsSpaceOrControl(s[sl-1]) {
+			if sl := len(s); end > 0 && sl != 0 && isSpaceOrControl(r[0]) && !isSpaceOrControl(s[sl-1]) {
 				s = append(s, ' ')
 			}
 		// end of statement, max words, or punctuation that can be ignored
@@ -310,25 +303,6 @@ func substitute(r []rune, i, end, n int, s string) ([]rune, int) {
 	// substitute
 	copy(r[i+sn:], r[i+n:])
 	copy(r[i:], sr)
-	return r[:tlen], tlen
-}
-
-// substituteVar substitutes part of r, based on v, with s.
-func substituteVar(r []rune, v *Var, s string) ([]rune, int) {
-	sr, rcap := []rune(s), cap(r)
-	v.Len = len(sr)
-	// grow ...
-	tlen := len(r) + v.Len - (v.End - v.I)
-	if tlen > rcap {
-		z := make([]rune, tlen)
-		copy(z, r)
-		r = z
-	} else {
-		r = r[:rcap]
-	}
-	// substitute
-	copy(r[v.I+v.Len:], r[v.End:])
-	copy(r[v.I:v.I+v.Len], sr)
 	return r[:tlen], tlen
 }
 

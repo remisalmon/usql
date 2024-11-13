@@ -6,38 +6,8 @@ import (
 	"unicode"
 )
 
-// MinCapIncrease is the minimum amount by which to grow a Stmt.Buf.
-const MinCapIncrease = 512
-
-// Var holds information about a variable.
-type Var struct {
-	// I is where the variable starts (ie, ':') in Stmt.Buf.
-	I int
-	// End is where the variable ends in Stmt.Buf.
-	End int
-	// Quote is the quote character used if the variable was quoted, 0
-	// otherwise.
-	Quote rune
-	// Name is the actual variable name excluding ':' and any enclosing quote
-	// characters.
-	Name string
-	// Len is the length of the replaced variable.
-	Len int
-	// Defined indicates whether the variable has been defined.
-	Defined bool
-}
-
-// String satisfies the fmt.Stringer interface.
-func (v *Var) String() string {
-	var q string
-	switch {
-	case v.Quote == '\\':
-		return "\\" + v.Name
-	case v.Quote != 0:
-		q = string(v.Quote)
-	}
-	return ":" + q + v.Name + q
-}
+// minCapIncrease is the minimum amount by which to grow a Stmt.Buf.
+const minCapIncrease = 512
 
 // Stmt is a reusable statement buffer that handles reading and parsing
 // SQL-like statements.
@@ -93,31 +63,46 @@ func (b *Stmt) String() string {
 	return string(b.Buf)
 }
 
+// PrintString returns a print string of the statement buffer, which is the
+// statement buffer but with escaped variables re-interpolated.
+func (b *Stmt) PrintString() string {
+	if b.Len == 0 {
+		return ""
+	}
+	i, s, w := 0, string(b.Buf), new(bytes.Buffer)
+	// deinterpolate vars
+	for _, v := range b.Vars {
+		if v.Quote != '\\' {
+			continue
+		}
+		if len(s) > i {
+			w.WriteString(s[i:v.I])
+		}
+		w.WriteString(v.String())
+		i = v.I + v.Len
+	}
+	// add remaining
+	if len(s) > i {
+		w.WriteString(s[i:])
+	}
+	return w.String()
+}
+
 // RawString returns the non-interpolated version of the statement buffer.
 func (b *Stmt) RawString() string {
 	if b.Len == 0 {
 		return ""
 	}
-	s, z := string(b.Buf), new(bytes.Buffer)
-	var i int
+	i, s, z := 0, string(b.Buf), new(bytes.Buffer)
 	// deinterpolate vars
 	for _, v := range b.Vars {
-		if !v.Defined {
+		if !v.Defined && v.Quote != '\\' {
 			continue
 		}
 		if len(s) > i {
 			z.WriteString(s[i:v.I])
 		}
-		if v.Quote != '\\' {
-			z.WriteRune(':')
-		}
-		if v.Quote != 0 {
-			z.WriteRune(v.Quote)
-		}
-		z.WriteString(v.Name)
-		if v.Quote != 0 && v.Quote != '\\' {
-			z.WriteRune(v.Quote)
-		}
+		z.WriteString(v.String())
 		i = v.I + v.Len
 	}
 	// add remaining
@@ -136,7 +121,7 @@ func (b *Stmt) Ready() bool {
 // Reset resets the statement buffer.
 func (b *Stmt) Reset(r []rune) {
 	// reset buf
-	b.Buf, b.Len, b.Prefix, b.Vars = nil, 0, "", nil
+	b.Buf, b.Len, b.Prefix, b.Vars = nil, 0, "", b.Vars[:0]
 	// quote state
 	b.quote, b.quoteDollarTag = 0, ""
 	// multicomment state
@@ -149,9 +134,6 @@ func (b *Stmt) Reset(r []rune) {
 		b.r, b.rlen = r, len(r)
 	}
 }
-
-// lineend is the slice to use when appending a line.
-var lineend = []rune{'\n'}
 
 // Next reads the next statement from the rune source, returning when either
 // the statement has been terminated, or a meta command has been read from the
@@ -187,7 +169,7 @@ var lineend = []rune{'\n'}
 //	       buf.Reset(nil)
 //	    }
 //	}
-func (b *Stmt) Next(unquote func(string, bool) (bool, string, error)) (string, string, error) {
+func (b *Stmt) Next(unquote func(string, bool) (string, bool, error)) (string, string, error) {
 	var err error
 	var i int
 	// no runes to process, grab more
@@ -202,7 +184,7 @@ func (b *Stmt) Next(unquote func(string, bool) (bool, string, error)) (string, s
 	var ok bool
 parse:
 	for ; i < b.rlen; i++ {
-		// log.Printf(">> (%c) %d", b.r[i], i)
+		// fmt.Fprintf(os.Stderr, "> %d: `%s`\n", i, string(b.r[i:]))
 		// grab c, next
 		c, next := b.r[i], grab(b.r, i+1, b.rlen)
 		switch {
@@ -241,20 +223,27 @@ parse:
 			i++
 		// variable declaration
 		case c == ':' && next != ':':
-			if v := readVar(b.r, i, b.rlen); v != nil {
-				var q string
-				if v.Quote != 0 {
-					q = string(v.Quote)
-				}
+			if v := readVar(b.r, i, b.rlen, next); v != nil {
 				b.Vars = append(b.Vars, v)
-				if ok, z, _ := unquote(q+v.Name+q, true); ok {
-					v.Defined = true
-					b.r, b.rlen = substituteVar(b.r, v, z)
-					i--
+				z, ok, _ := unquote(v.Name, true)
+				if v.Defined = ok || v.Quote == '?'; v.Defined {
+					b.r, b.rlen = v.Substitute(b.r, z, ok)
 				}
 				if b.Len != 0 {
 					v.I += b.Len + 1
 				}
+			}
+		// skip escaped backslash, semicolon, colon
+		case c == '\\' && (next == '\\' || next == ';' || next == ':'):
+			v := &Var{
+				I:     i,
+				End:   i + 2,
+				Quote: '\\',
+				Name:  string(next),
+			}
+			b.Vars = append(b.Vars, v)
+			if b.r, b.rlen = v.Substitute(b.r, string(next), false); b.Len != 0 {
+				v.I += b.Len + 1
 			}
 		// unbalance
 		case c == '(':
@@ -264,21 +253,6 @@ parse:
 			b.balanceCount = max(0, b.balanceCount-1)
 		// continue processing quoted string, multiline comment, or unbalanced statements
 		case b.quote != 0 || b.multilineComment || b.balanceCount != 0:
-		// skip escaped backslash, semicolon, colon
-		case c == '\\' && (next == '\\' || next == ';' || next == ':'):
-			// FIXME: the below works, but it may not make sense to keep this enabled.
-			// FIXME: also, the behavior is slightly different than psql
-			v := &Var{
-				I:     i,
-				End:   i + 2,
-				Quote: '\\',
-				Name:  string(next),
-			}
-			b.Vars = append(b.Vars, v)
-			b.r, b.rlen = substituteVar(b.r, v, string(next))
-			if b.Len != 0 {
-				v.I += b.Len + 1
-			}
 		// start of command
 		case c == '\\':
 			// parse command and params end positions
@@ -324,10 +298,13 @@ parse:
 	// reset r
 	b.r = b.r[i:]
 	b.rlen = len(b.r)
-	// log.Printf("returning from NEXT: `%s`", string(b.Buf))
-	// log.Printf(">>>>>>>>>>>> REMAIN: `%s`", string(b.r))
-	// log.Printf(">>>>>>>>>>>>    CMD: `%s`", cmd)
-	// log.Printf(">>>>>>>>>>>> PARAMS: %v", params)
+	/*
+		fmt.Fprintf(os.Stderr, "\n------------------------------\n")
+		fmt.Fprintf(os.Stderr, "    NEXT: `%s`\n", string(b.Buf))
+		fmt.Fprintf(os.Stderr, "  REMAIN: `%s`\n", string(b.r))
+		fmt.Fprintf(os.Stderr, "     CMD: `%s`\n", cmd)
+		fmt.Fprintf(os.Stderr, "  PARAMS: %v\n", params)
+	*/
 	return cmd, params, nil
 }
 
@@ -351,7 +328,7 @@ func (b *Stmt) Append(r, sep []rune) {
 	// grow
 	if bcap := cap(b.Buf); tlen > bcap {
 		n := tlen + 2*rlen
-		n += MinCapIncrease - (n % MinCapIncrease)
+		n += minCapIncrease - (n % minCapIncrease)
 		z := make([]rune, blen, n)
 		copy(z, b.Buf)
 		b.Buf = z
@@ -380,6 +357,63 @@ func (b *Stmt) State() string {
 		return "-"
 	}
 	return "="
+}
+
+// Var holds information about a variable.
+type Var struct {
+	// I is where the variable starts (ie, ':') in Stmt.Buf.
+	I int
+	// End is where the variable ends in Stmt.Buf.
+	End int
+	// Quote is the quote character used if the variable was quoted, 0
+	// otherwise.
+	Quote rune
+	// Name is the actual variable name excluding ':' and any enclosing quote
+	// characters.
+	Name string
+	// Len is the length of the replaced variable.
+	Len int
+	// Defined indicates whether the variable has been defined.
+	Defined bool
+}
+
+// String satisfies the fmt.Stringer interface.
+func (v *Var) String() string {
+	switch v.Quote {
+	case '\\':
+		return "\\" + v.Name
+	case '\'', '"':
+		return ":" + string(v.Quote) + v.Name + string(v.Quote)
+	case '?':
+		return ":{?" + v.Name + "}"
+	}
+	return ":" + v.Name
+}
+
+// Substitute substitutes part of r, with s.
+func (v *Var) Substitute(r []rune, s string, ok bool) ([]rune, int) {
+	switch v.Quote {
+	case '?':
+		s = trueFalse(ok)
+	case '\'', '"':
+		s = string(v.Quote) + s + string(v.Quote)
+	}
+	// fmt.Fprintf(os.Stderr, "orig: %q repl: %q\n", string(r), s)
+	sr, rcap := []rune(s), cap(r)
+	v.Len = len(sr)
+	// grow ...
+	tlen := len(r) + v.Len - (v.End - v.I)
+	if tlen > rcap {
+		z := make([]rune, tlen)
+		copy(z, r)
+		r = z
+	} else {
+		r = r[:rcap]
+	}
+	// substitute
+	copy(r[v.I+v.Len:], r[v.End:])
+	copy(r[v.I:v.I+v.Len], sr)
+	return r[:tlen], tlen
 }
 
 // Option is a statement buffer option.
@@ -417,19 +451,29 @@ func WithAllowHashComments(enable bool) Option {
 	}
 }
 
-// IsSpaceOrControl is a special test for either a space or a control (ie, \b)
+// isSpaceOrControl is a special test for either a space or a control (ie, \b)
 // characters.
-func IsSpaceOrControl(r rune) bool {
+func isSpaceOrControl(r rune) bool {
 	return unicode.IsSpace(r) || unicode.IsControl(r)
 }
 
-// RunesLastIndex returns the last index in r of needle, or -1 if not found.
-func RunesLastIndex(r []rune, needle rune) int {
-	i := len(r) - 1
-	for ; i >= 0; i-- {
+// lastIndex returns the last index in r of needle, or -1 if not found.
+func lastIndex(r []rune, needle rune) int {
+	for i := len(r) - 1; i >= 0; i-- {
 		if r[i] == needle {
 			return i
 		}
 	}
-	return i
+	return -1
 }
+
+// trueFalse returns TRUE or FALSE.
+func trueFalse(ok bool) string {
+	if ok {
+		return "TRUE"
+	}
+	return "FALSE"
+}
+
+// lineend is the slice to use when appending a line.
+var lineend = []rune{'\n'}
